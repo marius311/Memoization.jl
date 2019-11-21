@@ -52,5 +52,16 @@ using Test
     # this is broken because @inferred is failing despite @code_warntype giving that its inferred:
     @test_broken @inferred((@memoize foo(;x) = x)(x=2)) == 2
     
+    # closures
+    function make_func(x)
+        @memoize func(y) = (n+=1; (x,y))
+    end
+    k = make_func(1)
+    @test (n=0; k(2)==(1,2) && n==1)
+    @test (n=0; k(2)==(1,2) && n==0)
+    k′ = make_func(2)
+    @test (n=0; k′(2)==(2,2) && n==1)
+    @test (n=0; k′(2)==(2,2) && n==0)
+    @test (n=0; k(2)==(1,2) && n==0)
     
 end

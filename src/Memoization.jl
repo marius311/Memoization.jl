@@ -3,11 +3,22 @@ module Memoization
 using MacroTools: splitdef, combinedef, splitarg
 export @memoize
 
-# use a generated function to make one cache dict per unique (function,
-# cache_type) pair
-@noinline @generated get_cache(::Function, ::Type{D}=IdDict) where {D<:AbstractDict} = D()
-
+# Use a generated function to make one memoization cache per unique
+# (objectid(function), cache_type) pair. The generated function makes looking up
+# the right cache for a target memoized function as fast as possible since it
+# will be done at compile time. We also keep track of the caches in a variable
+# to allow empty_all_caches!. The reason for using the function objectid instead
+# of the function type itself is because the function might be a closure, and in
+# this way we can have a separate cache for each instance of the closure (which
+# might have different closed over variables). 
+@inline get_cache(f::Function, args...) = get_cache(Val(objectid(f)), args...)
+@noinline @generated function get_cache(::Val{id}, ::Type{D}=IdDict) where {id,D<:AbstractDict}
+    caches[id,D] = d = D()
+    d
+end
+caches = Dict()
 empty_cache!(args...) = empty!(get_cache(args...))
+empty_all_caches!() = map(empty!,values(caches))
 
 """
     @memoize f(x) = ....
@@ -15,7 +26,7 @@ empty_cache!(args...) = empty!(get_cache(args...))
 
 Memoize a function with respect to all of its arguments and keyword arguments.
 
-By default, an IdDict is used as a cache. any `AbstractDict` can be used instead
+By default, an IdDict is used as a cache. Any `AbstractDict` can be used instead
 by passing the type as the first argment to the macro before the function
 definition. For example, if you want to memoize based on the contents of
 vectors, you could use a `Dict`.
