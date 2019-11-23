@@ -1,5 +1,7 @@
 # Memoization.jl
 
+[![Build Status](https://travis-ci.com/marius311/Memoization.jl.svg?branch=master)](https://travis-ci.com/marius311/Memoization.jl)
+
 Easily and efficiently memoize any function in Julia. 
 
 ## Usage

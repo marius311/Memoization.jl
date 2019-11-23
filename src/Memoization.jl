@@ -40,12 +40,26 @@ macro memoize(ex1, ex2=nothing)
     sdef[:body] = quote
         ($getter)() = $(sdef[:body])
         $T = $(Core.Compiler.return_type)($getter, $Tuple{})
-        $get!($getter, $get_cache($(sdef[:name]),$(cachetype...)), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
+        $_get!($getter, $get_cache($(sdef[:name]),$(cachetype...)), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
     end
     quote
         Core.@__doc__ $(esc(combinedef(sdef)))
         $empty_cache!($(esc(sdef[:name])),$(esc.(cachetype)...))
         $(esc(sdef[:name]))
+    end
+end
+
+
+_get!(args...) = get!(args...)
+if VERSION < v"1.1.0-DEV.752"
+    # this was only added in https://github.com/JuliaLang/julia/commit/7ba6c824467d2df51db6e091bbfc9e821e5a6dc2
+    function _get!(default::Base.Callable, d::IdDict{K,V}, @nospecialize(key)) where {K, V}
+        val = get(d, key, Base.secret_table_token)
+        if val === Base.secret_table_token
+            val = default()
+            setindex!(d, val, key)
+        end
+        return val
     end
 end
 
