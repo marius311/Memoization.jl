@@ -27,8 +27,8 @@ julia> f(2)
 * Your function remains inferrable.
 * Multiple memoized methods for the same function can be defined across different modules (no warnings are generated).
 * You can choose the cache type with e.g. `@memoize Dict f(x) = ...`. The default is `IdDict` which memoizes based on the object-id of the arguments.  `Dict` might be useful if you want to memoize based on their values, e.g. so that vectors which contain the same entries count as the same.
-* You can clear the cache for a given function at any time with `Memoization.empty_cache!(f)` (if you used a non-default cache type, you should do `Memoization.empty_cache!(f,Dict)` where `Dict` is replaced with whatever cache type you used).
-* You can also clear all caches with `Memoization.empty_all_caches!()`
+* You can clear the cache for a given function at any time with `Memoization.empty_cache!(f)`. Defining new memoized methods for a function will also clear the cache.
+* You can also clear all caches for all functions with `Memoization.empty_all_caches!()`.
 * You are free to memoize some methods of a function but not others, e.g.:
 
     ```julia
@@ -81,3 +81,9 @@ julia> f(2)
     julia> f(2) # note both f and g memoized separately at this point
     (1, 2)
     ```
+    
+## Notes
+
+This package can be used as a drop-in replacement for [Memoize.jl](https://github.com/JuliaCollections/Memoize.jl), and, as of this writing, has fewer limitations.
+
+The design is partly inspired by both [Memoize.jl](https://github.com/JuliaCollections/Memoize.jl) and [this](https://stackoverflow.com/a/52084004/1078529) Stack Overflow comment.

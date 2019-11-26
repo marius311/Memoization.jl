@@ -3,22 +3,31 @@ module Memoization
 using MacroTools: splitdef, combinedef, splitarg
 export @memoize
 
-# Use a generated function to make one memoization cache per unique
-# (objectid(function), cache_type) pair. The generated function makes looking up
-# the right cache for a target memoized function as fast as possible since it
-# will be done at compile time. We also keep track of the caches in a variable
-# to allow empty_all_caches!. The reason for using the function objectid instead
-# of the function type itself is because the function might be a closure, and in
-# this way we can have a separate cache for each instance of the closure (which
-# might have different closed over variables). 
-@inline get_cache(f::Function, args...) = get_cache(Val(objectid(f)), args...)
-@noinline @generated function get_cache(::Val{id}, ::Type{D}=IdDict) where {id,D<:AbstractDict}
-    caches[id,D] = d = D()
-    d
+# Stores a mapping from (f, cache_type) to individual caches for each memoized
+# function. The key is different if we are memoizing a top-level function vs. a
+# closure. For top-level functions, f is the function's type. For closures, f is the
+# actual instance of the closure (hence we will have a different entry for each
+# instance, which is good since each one might have different closed-over
+# variables).
+const caches = IdDict()
+
+# A closure counts as any function that has closed-over variables attached to
+# it, indicated by having type parameters.
+isclosure(::Type{F}) where {F<:Function} = !isempty(F.parameters)
+
+# A generated function is used to look up the cache for any given top-level
+# function or closure. For top-level functions, we are effectively pasting the
+# appropriate cache directly into the expression tree at compile time, so its
+# super fast. For closures, we have to do the lookup at run-time, so its a
+# little bit slower.
+@generated function get_cache(f::F, ::Type{D}=IdDict) where {F<:Function, D<:AbstractDict}
+    isclosure(F) ? :(_get!($(()->D()), $caches, (f,D))) : _get!(()->D(), caches, (F,D))
 end
-caches = Dict()
-empty_cache!(args...) = empty!(get_cache(args...))
-empty_all_caches!() = map(empty!,values(caches))
+
+function empty_cache!(f::F) where {F<:Function}
+    map(empty!, [cache for ((f′,_),cache) in caches if (f′ == (isclosure(F) ? f : F))])
+end
+empty_all_caches!() = map(empty!, values(caches))
 
 """
     @memoize f(x) = ....
@@ -44,7 +53,7 @@ macro memoize(ex1, ex2=nothing)
     end
     quote
         Core.@__doc__ $(esc(combinedef(sdef)))
-        $empty_cache!($(esc(sdef[:name])),$(esc.(cachetype)...))
+        $empty_cache!($(esc(sdef[:name])))
         $(esc(sdef[:name]))
     end
 end
