@@ -82,6 +82,11 @@ julia> f(2)
     (1, 2)
     ```
     
+## Limitations
+
+* This package is not threadsafe with either `Dict` or `IdDict`. However, if a threadsafe dictionary is used (not sure if any exist in Julia yet though), then memoizing top-level functions is threadsafe. Memoizing closures is not yet threadsafe with any cache type. 
+* If using custom cache types other than `Dict` or `IdDict`, the custom type must be defined *before* the first time you call `using Memoization` in a given session.
+    
 ## Notes
 
 This package can be used as a drop-in replacement for [Memoize.jl](https://github.com/JuliaCollections/Memoize.jl), and, as of this writing, has fewer limitations.
