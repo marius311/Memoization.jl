@@ -3,26 +3,26 @@ module Memoization
 using MacroTools: splitdef, combinedef, splitarg, isexpr
 export @memoize
 
-# Stores a mapping from (f, cache_type) to individual caches for each memoized
-# function. The key is different if we are memoizing a top-level function vs. a
-# closure. For top-level functions, f is the function's type. For closures, f is the
-# actual instance of the closure (hence we will have a different entry for each
-# instance, which is good since each one might have different closed-over
-# variables).
+# Stores a mapping:
+# 
+#    (func, cache_type) => cache
+# 
+# for each memoized function `func`. For top-level functions, `func` is the
+# function's type. For closures or callables, `func` is an individual instance
+# of the closure or callable object.
 const caches = IdDict()
 
-# A closure counts as a non-function "callable" or any function that has
-# closed-over variables attached to it, indicated by having type parameters.
-isclosure(::Type{F}) where {F<:Function} = !isempty(F.parameters)
-isclosure(::Type) = true
+# Non-function "callables" or any function that has closed-over variables
+# attached to it (indicated by having type parameters) are memoized
+# per-instance. 
+memoize_per_instance(::Type{F}) where {F<:Function} = !isempty(F.parameters)
+memoize_per_instance(::Type) = true
 
-# A generated function is used to look up the cache for any given top-level
-# function or closure. For top-level functions, we are effectively pasting the
-# appropriate cache directly into the expression tree at compile time, so its
-# super fast. For closures, we have to do the lookup at run-time, so its a
-# little bit slower.
-@generated function get_cache(f::F, ::Type{D}=IdDict) where {F, D<:AbstractDict}
-    isclosure(F) ? :(_get!($(()->D()), $caches, (f,D))) : _get!(()->D(), caches, (F,D))
+# Look up (and possibly create) the cache for a given memoized function. Using a
+# generated function allows us to move this lookup to compile time for top-level
+# functions and improve performance.
+@generated function get_cache(func::F, ::Type{D}=IdDict) where {F, D<:AbstractDict}
+    memoize_per_instance(F) ? :(_get!($(()->D()), $caches, (func,D))) : _get!(()->D(), caches, (F,D))
 end
 
 """
@@ -34,9 +34,11 @@ For functions or closures, `arg` should be the name of the function or closure.
 For callables, `arg` should be a type and the cache for all callable objects
 matching that type will be cleared.
 """
-empty_cache!(f) = map(empty!, values(find_caches(f)))
-find_caches(f::F) where {F<:Function} = filter((((f′,_),_))->(isclosure(F) ? (f′ == f) : (f′ == F)), caches)
-find_caches(F::Union{DataType,Union,UnionAll}) = filter((((f′,_),_))->(f′ isa F), caches)
+empty_cache!(func) = map(empty!, values(find_caches(func)))
+find_caches(func::F) where {F<:Function} = 
+    filter((((func′,_),_))->(memoize_per_instance(F) ? (func′ == func) : (func′ == F)), caches)
+find_caches(F::Union{DataType,Union,UnionAll}) = 
+    filter((((func′,_),_))->(func′ isa F), caches)
 empty_all_caches!() = map(empty!, values(caches))
 
 """
@@ -76,11 +78,13 @@ macro memoize(ex1, ex2=nothing)
         cacheid_get = cacheid_empty = sdef[:name]
     end
     
+    # the body of the function definition is replaced with this:
     sdef[:body] = quote
         ($getter)() = $(sdef[:body])
         $T = $(Core.Compiler.return_type)($getter, $Tuple{})
         $_get!($getter, $get_cache($cacheid_get, $(cachetype...)), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
     end
+    
     quote
         func = Core.@__doc__ $(esc(combinedef(sdef)))
         $empty_cache!($(esc(cacheid_empty)))
