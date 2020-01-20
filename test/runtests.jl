@@ -64,4 +64,22 @@ using Test
     @test (n=0; k′(2)==(2,2) && n==0)
     @test (n=0; k(2)==(1,2) && n==0)
     
+    # callables
+    struct Baz{T} end
+    @memoize (::Baz{T})(x::X) where {X, T<:Int} = (n+=1; Int)
+    @memoize (::Baz{T})(x::X) where {X, T<:String} = (n+=1; String)
+    bazint = Baz{Int}()
+    bazstring = Baz{String}()
+    @test (n=0; bazint(2)==Int && n==1)
+    @test (n=0; bazint(2)==Int && n==0)
+    @test (n=0; bazstring(2)==String && n==1)
+    @test (n=0; bazstring(2)==String && n==0)
+    Memoization.empty_cache!(Baz{Int})
+    @test (n=0; bazint(2)==Int && n==1)
+    Memoization.empty_cache!(Baz{String})
+    @test (n=0; bazstring(2)==String && n==1)
+    Memoization.empty_cache!(Baz)
+    @test (n=0; bazint(2)==Int && n==1)
+    @test (n=0; bazstring(2)==String && n==1)
+    
 end

@@ -52,7 +52,7 @@ julia> f(2)
     3
     ```
  
-* You can memoize closures, e.g.:
+* You can memoize individual instances of closures, e.g.:
 
     ```julia
 
@@ -81,7 +81,36 @@ julia> f(2)
     julia> f(2) # note both f and g memoized separately at this point
     (1, 2)
     ```
+* You can memoize individual instances of "callables", e.g.,
+
+    ```julia
+    julia> struct Foo
+               x
+           end
     
+    julia> @memoize (f::Foo)(x) = (println("Computed $(f.x), $x"); (f.x, x))
+    
+    julia> foo1 = Foo(1); foo2 = Foo(2);
+    
+    julia> foo1(3)
+    Computed 1,3
+    (1,3)
+    
+    julia> foo1(3)
+    (1,3)
+    
+    julia> foo2(3)
+    Computed 2,3
+    (2,3)
+    
+    julia> foo2(3)
+    (2,3)
+
+    julia> foo1(3) # note both foo1 and foo2 memoized separately at this point
+    (1,3)
+    ```
+
+
 ## Limitations
 
 * This package is not threadsafe with either `Dict` or `IdDict`. However, if a threadsafe dictionary is used (not sure if any exist in Julia yet though), then memoizing top-level functions is threadsafe. Memoizing closures is not yet threadsafe with any cache type. 
