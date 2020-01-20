@@ -65,7 +65,7 @@ using Test
     @test (n=0; k(2)==(1,2) && n==0)
     
     # callables
-    struct Baz{T} end
+    @eval struct Baz{T} end
     @memoize (::Baz{T})(x::X) where {X, T<:Int} = (n+=1; Int)
     @memoize (::Baz{T})(x::X) where {X, T<:String} = (n+=1; String)
     bazint = Baz{Int}()

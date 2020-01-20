@@ -62,24 +62,24 @@ julia> f(2)
 
     julia> f = make_func(1);
 
-    julia> f(2)
-    Computed 1,2
-    (1, 2)
+    julia> f(3)
+    Computed 1,3
+    (1, 3)
 
-    julia> f(2)
-    (1, 2)
+    julia> f(3)
+    (1, 3)
 
     julia> g = make_func(2);
 
-    julia> g(2)
-    Computed 2,2
-    (2, 2)
+    julia> g(3)
+    Computed 2,3
+    (2, 3)
 
-    julia> g(2)
-    (2, 2)
+    julia> g(3)
+    (2, 3)
 
-    julia> f(2) # note both f and g memoized separately at this point
-    (1, 2)
+    julia> f(3) # note both f and g memoized separately at this point
+    (1, 3)
     ```
 * You can memoize individual instances of "callables", e.g.,
 
@@ -90,7 +90,7 @@ julia> f(2)
     
     julia> @memoize (f::Foo)(x) = (println("Computed $(f.x), $x"); (f.x, x))
     
-    julia> foo1 = Foo(1); foo2 = Foo(2);
+    julia> foo1 = Foo(1);
     
     julia> foo1(3)
     Computed 1,3
@@ -98,6 +98,8 @@ julia> f(2)
     
     julia> foo1(3)
     (1,3)
+    
+    julia> foo2 = Foo(2);
     
     julia> foo2(3)
     Computed 2,3

@@ -35,8 +35,8 @@ For callables, `arg` should be a type and the cache for all callable objects
 matching that type will be cleared.
 """
 empty_cache!(f) = map(empty!, values(find_caches(f)))
-find_caches(f::F) where {F<:Function} = filter(((f′,_),_)->(isclosure(F) ? (f′ == f) : (f′ == F)), caches)
-find_caches(F::Union{DataType,Union,UnionAll}) = filter(((f′,_),_)->(f′ isa F), caches)
+find_caches(f::F) where {F<:Function} = filter((((f′,_),_))->(isclosure(F) ? (f′ == f) : (f′ == F)), caches)
+find_caches(F::Union{DataType,Union,UnionAll}) = filter((((f′,_),_))->(f′ isa F), caches)
 empty_all_caches!() = map(empty!, values(caches))
 
 """
