@@ -36,9 +36,9 @@ matching that type will be cleared.
 """
 empty_cache!(func) = map(empty!, values(find_caches(func)))
 find_caches(func::F) where {F<:Function} = 
-    filter((((func′,_),_))->(memoize_per_instance(F) ? (func′ == func) : (func′ == F)), caches)
+    filter((((func′,_),_),)->(memoize_per_instance(F) ? (func′ == func) : (func′ == F)), caches)
 find_caches(F::Union{DataType,Union,UnionAll}) = 
-    filter((((func′,_),_))->(func′ isa F), caches)
+    filter((((func′,_),_),)->(func′ isa F), caches)
 empty_all_caches!() = map(empty!, values(caches))
 
 """
