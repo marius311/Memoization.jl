@@ -85,9 +85,15 @@ macro memoize(ex1, ex2=nothing)
         $_get!($getter, $get_cache($cacheid_get, $(cachetype...)), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
     end
     
+    canary = gensym("canary")
     quote
         func = Core.@__doc__ $(esc(combinedef(sdef)))
-        $empty_cache!($(esc(cacheid_empty)))
+        # only empty cache if this function definition is at the toplevel
+        # see also: https://discourse.julialang.org/t/is-there-a-way-to-determine-whether-code-is-toplevel
+        $(esc(canary)) = true
+        if isdefined($__module__, $(QuoteNode(canary)))
+            $empty_cache!($(esc(cacheid_empty)))
+        end
         func
     end
 end

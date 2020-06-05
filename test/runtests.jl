@@ -42,10 +42,11 @@ using Test
     @test (n=0; g([1,2])==[1,2] && n==0)
     
     # redefinition
-    @memoize h(x) = x
-    @test h(2)==2 && h(2)==2
-    @memoize h(x) = 2x
-    @test h(2)==4 && h(2)==4
+    # should only clear cache in toplevel, hence @eval
+    @eval @memoize h(x) = x
+    @test @eval h(2)==2 && h(2)==2
+    @eval @memoize h(x) = 2x
+    @test @eval h(2)==4 && h(2)==4
     
     # inference
     @test @inferred((@memoize foo(x) = x)(2)) == 2
