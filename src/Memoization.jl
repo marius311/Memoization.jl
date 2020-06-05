@@ -1,6 +1,6 @@
 module Memoization
 
-using MacroTools: splitdef, combinedef, splitarg, isexpr
+using MacroTools: splitdef, combinedef, splitarg, combinearg, isexpr
 export @memoize
 
 # Stores a mapping:
@@ -62,6 +62,11 @@ vectors, you could use a `Dict`.
 macro memoize(ex1, ex2=nothing)
     cachetype, funcdef = ex2 == nothing ? ((), ex1) : ((ex1,), ex2)
     sdef = splitdef(funcdef)
+    # give unnamed args a placeholder name:
+    sdef[:args] = map(sdef[:args]) do arg
+        sarg = splitarg(arg)
+        combinearg((sarg[1] == nothing ? gensym() : sarg[1]), sarg[2:end]...)
+    end
     arg_signature   = [(issplat ? :($arg...) : arg)          for (arg,_,issplat) in map(splitarg,sdef[:args])]
     kwarg_signature = [(issplat ? :($arg...) : :($arg=$arg)) for (arg,_,issplat) in map(splitarg,sdef[:kwargs])]
     T, getter = (gensym.(("T","getter")))

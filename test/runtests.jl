@@ -83,4 +83,11 @@ using Test
     @test (n=0; bazint(2)==Int && n==1)
     @test (n=0; bazstring(2)==String && n==1)
     
+    # unnamed args
+    @memoize uarg(::Type{T}) where {T} = (n+=1; T)
+    @test (n=0; uarg(Int)==Int && n==1)
+    @test (n=0; uarg(Int)==Int && n==0)
+    @test (n=0; uarg(Float64)==Float64 && n==1)
+    @test (n=0; uarg(Float64)==Float64 && n==0)
+    
 end
