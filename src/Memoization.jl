@@ -21,8 +21,15 @@ memoize_per_instance(::Type) = true
 # Look up (and possibly create) the cache for a given memoized function. Using a
 # generated function allows us to move this lookup to compile time for top-level
 # functions and improve performance.
-@generated function get_cache(func::F, ::Type{D}=IdDict) where {F, D<:AbstractDict}
-    memoize_per_instance(F) ? :(_get!($(()->D()), $caches, (func,D))) : _get!(()->D(), caches, (F,D))
+@generated function get_cache(func::F, cache_type=IdDict) where {F}
+    if memoize_per_instance(F) || !(cache_type <: Type)
+        quote
+            _get!(cache_type, $caches, (func,cache_type))
+        end
+    else
+        CT, = cache_type.parameters
+        _get!(CT, caches, (F,CT))
+    end
 end
 
 """
@@ -44,6 +51,7 @@ empty_all_caches!() = map(empty!, values(caches))
 """
     @memoize f(x) = ...
     @memoize Dict f(x) = ... # with custom cache type
+    @memoize LRU(maxsize=4) f(x) = ... # with custom cache type
     @memoize (::Foo)(x) = ... # memoizing a callable
     f(x) = @memoize g(y) = ... # memoizing a closure
 
@@ -54,14 +62,18 @@ Memoized closures or callables are memoized on a per-instance basis, so closures
 are free to use the closed over variables and callables are free to use the
 fields of the callable object.
 
-By default, an IdDict is used as a cache. Any `AbstractDict` can be used instead
-by passing the type as the first argment to the macro before the function
-definition. For example, if you want to memoize based on the contents of
-vectors, you could use a `Dict`.
+By default, an IdDict is used as a cache. Any dict-like object can be used by
+passing a type or an expression to construct the object as the first argment to
+the macro before the function definition. For example, if you want to memoize
+based on the contents of vectors, you could use a `Dict`.
 """
 macro memoize(ex1, ex2=nothing)
     cachetype, funcdef = ex2 == nothing ? ((), ex1) : ((ex1,), ex2)
     sdef = splitdef(funcdef)
+    # if cachetype is a call, wrap it in a () -> ...
+    if !isempty(cachetype) && isexpr(cachetype[1],:call)
+        cachetype = (:(() -> $(cachetype[1])),)
+    end
     # give unnamed args a placeholder name:
     sdef[:args] = map(sdef[:args]) do arg
         sarg = splitarg(arg)

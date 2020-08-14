@@ -26,7 +26,14 @@ julia> f(2)
 * All function definition forms with args and/or kwargs and/or type parameters work.
 * Your function remains inferrable.
 * Multiple memoized methods for the same function can be defined across different modules (no warnings are generated).
-* You can choose the cache type with e.g. `@memoize Dict f(x) = ...`. The default is `IdDict` which memoizes based on the object-id of the arguments.  `Dict` might be useful if you want to memoize based on their values, e.g. so that vectors which contain the same entries count as the same.
+* You can choose the cache type, e.g.,
+
+    ```julia
+    @memoize Dict f(x) = ...
+    @memoize LRU(maxsize=5) f(x) = ...
+    ```
+
+    The specifier should be a type which can be called without arguments to create the cache, or an expression which creates an instance of a cache (note: cache creation is delayed until the first time a function is called, so it is not possible to pass a pre-instantiated cache). The default cache type is `IdDict` which memoizes based on the object-id of the arguments. `Dict` may be useful if you want vectors which contain the same entries to count as the same, but will lead to somewhat slower cache lookup. 
 * You can clear the cache for a given function at any time with `Memoization.empty_cache!(f)`. Defining new memoized methods for a function will also clear the cache.
 * You can also clear all caches for all functions with `Memoization.empty_all_caches!()`.
 * You are free to memoize some methods of a function but not others, e.g.:

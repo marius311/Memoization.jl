@@ -33,11 +33,14 @@ using Test
     Memoization.empty_cache!(f)
     @test (n=0; f(1,z=1) == ((1,nothing),(z=1,w=nothing)) && n==1)
     
-    # Dict vs. IdDict cache
+    # Dict vs. IdDict cache vs. custom cache
     @memoize IdDict g(x) = (n+=1; x)
     @test (n=0; g([1,2])==[1,2] && n==1)
     @test (n=0; g([1,2])==[1,2] && n==1)
     @memoize   Dict g(x) = (n+=1; x)
+    @test (n=0; g([1,2])==[1,2] && n==1)
+    @test (n=0; g([1,2])==[1,2] && n==0)
+    @memoize Dict() g(x) = (n+=1; x)
     @test (n=0; g([1,2])==[1,2] && n==1)
     @test (n=0; g([1,2])==[1,2] && n==0)
     
