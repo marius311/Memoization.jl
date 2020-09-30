@@ -137,11 +137,11 @@ julia> f(2)
 
     ```julia
     # bad, will error calling foo(x)
-    using Memoize, ThreadSafeDicts
+    using Memoization, ThreadSafeDicts
     @memoize ThreadSafeDict foo(x) = ...
 
     # good
-    using ThreadSafeDicts, Memoize
+    using ThreadSafeDicts, Memoization
     @memoize ThreadSafeDict foo(x) = ...
     ```
 
