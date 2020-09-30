@@ -24,8 +24,11 @@ julia> f(2)
 ## Highlights
 
 * All function definition forms with args and/or kwargs and/or type parameters work.
+
 * Your function remains inferrable.
+
 * Multiple memoized methods for the same function can be defined across different modules (no warnings are generated).
+
 * You can choose the cache type, e.g.,
 
     ```julia
@@ -33,9 +36,15 @@ julia> f(2)
     @memoize LRU(maxsize=5) f(x) = ...
     ```
 
-    The specifier should be a type which can be called without arguments to create the cache, or an expression which creates an instance of a cache (note: cache creation is delayed until the first time a function is called, so it is not possible to pass a pre-instantiated cache). The default cache type is `IdDict` which memoizes based on the object-id of the arguments. `Dict` may be useful if you want vectors which contain the same entries to count as the same, but will lead to somewhat slower cache lookup. 
+    The specifier should be a type which can be called without arguments to create the cache, or an expression which creates an instance of a cache (note: cache creation is delayed until the first time a function is called, so it is not possible to pass a pre-instantiated cache). 
+    
+    The default cache type is `IdDict` which 
+    counts arguments the same if they `===` each other. Another common choice is `Dict` which memoizes based on if they `==` each other (this is probably useful if you want to count e.g. vectors which contain the same entries as the same, but will lead to somewhat slower cache lookup).
+    
 * You can clear the cache for a given function at any time with `Memoization.empty_cache!(f)`. Defining new memoized methods for a function will also clear the cache.
+
 * You can also clear all caches for all functions with `Memoization.empty_all_caches!()`.
+
 * You are free to memoize some methods of a function but not others, e.g.:
 
     ```julia
@@ -88,6 +97,7 @@ julia> f(2)
     julia> f(3) # note both f and g memoized separately at this point
     (1, 3)
     ```
+
 * You can memoize individual instances of "callables", e.g.,
 
     ```julia
@@ -119,12 +129,22 @@ julia> f(2)
     (1,3)
     ```
 
-
 ## Limitations
 
-* This package is not threadsafe with either `Dict` or `IdDict`. However, if a threadsafe dictionary is used (not sure if any exist in Julia yet though), then memoizing top-level functions is threadsafe. Memoizing closures is not yet threadsafe with any cache type. 
-* If using custom cache types other than `Dict` or `IdDict`, the custom type must be defined *before* the first time you call `using Memoization` in a given session.
-    
+* This package is not thread-safe with either `Dict` or `IdDict`. However, if a thread-safe cache is used (e.g. [ThreadSafeDicts.jl](https://github.com/wherrera10/ThreadSafeDicts.jl)), then memoizing top-level functions is thread-safe. Memoizing closures and callables is not yet thread-safe with any cache type. 
+
+* If using custom cache types other than `Dict`, `IdDict`, or anything else defined in `Base`, the custom type must be defined *before* you load `Memoization`. E.g. 
+
+    ```julia
+    # bad, will error calling foo(x)
+    using Memoize, ThreadSafeDicts
+    @memoize ThreadSafeDict foo(x) = ...
+
+    # good
+    using ThreadSafeDicts, Memoize
+    @memoize ThreadSafeDict foo(x) = ...
+    ```
+
 ## Notes
 
 This package can be used as a drop-in replacement for [Memoize.jl](https://github.com/JuliaCollections/Memoize.jl), and, as of this writing, has fewer limitations.
