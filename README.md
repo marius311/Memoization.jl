@@ -33,7 +33,7 @@ julia> f(2)
 
     ```julia
     @memoize Dict f(x) = ...
-    @memoize LRU(maxsize=5) f(x) = ...
+    @memoize LRU(maxsize=5) f(x) = ...      # using https://github.com/JuliaCollections/LRUCache.jl
     ```
 
     The specifier should be a type which can be called without arguments to create the cache, or an expression which creates an instance of a cache (note: cache creation is delayed until the first time a function is called, so it is not possible to pass a pre-instantiated cache). 
