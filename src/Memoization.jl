@@ -3,14 +3,12 @@ module Memoization
 using MacroTools: splitdef, combinedef, splitarg, combinearg, isexpr
 export @memoize
 
-# Stores a mapping:
-# 
-#    (func, cache_type) => cache
-# 
-# for each memoized function `func`. For top-level functions, `func` is the
-# function's type. For closures or callables, `func` is an individual instance
-# of the closure or callable object.
-const caches = IdDict()
+# Stores a mapping (func => cache) for each memoized function `func`.
+const caches = WeakKeyDict()
+
+# Stores a mapping (cache_constructor_exprs => cache) for each
+# memoized function `func`, so that we can verify the same expression 
+const cache_constructor_exprs = IdDict()
 
 # Non-function "callables" or any function that has closed-over variables
 # attached to it (indicated by having type parameters) are memoized
@@ -21,16 +19,9 @@ memoize_per_instance(::Type) = true
 # Look up (and possibly create) the cache for a given memoized function. Using a
 # generated function allows us to move this lookup to compile time for top-level
 # functions and improve performance.
-@generated function get_cache(func::F, cache_type=IdDict) where {F}
-    if memoize_per_instance(F) || !(cache_type <: Type)
-        quote
-            _get!(cache_type, $caches, (func,cache_type))
-        end
-    else
-        CT, = cache_type.parameters
-        _get!(CT, caches, (F,CT))
-    end
-end
+@generated get_cache(func::F) where {F} =
+    memoize_per_instance(F) ? :($caches[func]) : caches[F.instance]
+    
 
 """
     empty_cache!(arg)
@@ -68,12 +59,13 @@ the macro before the function definition. For example, if you want to memoize
 based on the contents of vectors, you could use a `Dict`.
 """
 macro memoize(ex1, ex2=nothing)
-    cachetype, funcdef = ex2 == nothing ? ((), ex1) : ((ex1,), ex2)
+    cache_constructor, funcdef = ex2 == nothing ? (IdDict, ex1) : (ex1, ex2)
     sdef = splitdef(funcdef)
-    # if cachetype is a call, wrap it in a () -> ...
-    if !isempty(cachetype) && isexpr(cachetype[1],:call)
-        cachetype = (:(() -> $(cachetype[1])),)
+    # if cache_constructor is a call, wrap it in a () -> ...
+    if isexpr(cache_constructor,:call)
+        cache_constructor = (:(() -> $cache_constructor),)
     end
+    cache_constructor_expr = QuoteNode(Base.remove_linenums!(cache_constructor))
     # give unnamed args a placeholder name:
     sdef[:args] = map(sdef[:args]) do arg
         sarg = splitarg(arg)
@@ -99,9 +91,10 @@ macro memoize(ex1, ex2=nothing)
     sdef[:body] = quote
         ($getter)() = $(sdef[:body])
         $T = $(Core.Compiler.return_type)($getter, $Tuple{})
-        $_get!($getter, $get_cache($cacheid_get, $(cachetype...)), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
+        $_get!($getter, $get_cache($cacheid_get), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
     end
     
+
     canary = gensym("canary")
     quote
         func = Core.@__doc__ $(esc(combinedef(sdef)))
@@ -109,7 +102,21 @@ macro memoize(ex1, ex2=nothing)
         # see also: https://discourse.julialang.org/t/is-there-a-way-to-determine-whether-code-is-toplevel
         $(esc(canary)) = true
         if isdefined($__module__, $(QuoteNode(canary)))
-            $empty_cache!($(esc(cacheid_empty)))
+            # $empty_cache!($(esc(cacheid_empty)))
+        end
+        # verify we haven't already memoized this function with some other cache type
+        begin
+            local cache = _get!($(esc(cache_constructor)), caches, func)
+            if $(esc(cache_constructor)) isa Type
+                if !(cache isa $(esc(cache_constructor)))
+                    error("All methods must use same cache type, but $func is already memoized with $(typeof(cache))")
+                end
+            else
+                local cache_constructor_expr′ = _get!(()->$cache_constructor_expr, cache_constructor_exprs, func)
+                if cache_constructor_expr′ != $cache_constructor_expr
+                    error("All methods must use same cache type, but $func is already memoized with:\n $cache_constructor_expr′")
+                end
+            end
         end
         func
     end
