@@ -5,13 +5,14 @@ version = "0.1.5"
 
 [deps]
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+ThreadSafeDicts = "4239201d-c60e-5e0a-9702-85d713665ba7"
+
+[compat]
+MacroTools = "^0.4.3, ^0.5"
+julia = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test"]
-
-[compat]
-julia = "1"
-MacroTools = "^0.4.3, ^0.5"
