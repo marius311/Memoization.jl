@@ -133,18 +133,6 @@ julia> f(2)
 
 * This package is not thread-safe with either `Dict` or `IdDict`. However, if a thread-safe cache is used (e.g. [ThreadSafeDicts.jl](https://github.com/wherrera10/ThreadSafeDicts.jl)), then memoizing top-level functions is thread-safe. Memoizing closures and callables is not yet thread-safe with any cache type. 
 
-* If using custom cache types other than `Dict`, `IdDict`, or anything else defined in `Base`, the custom type must be defined *before* you load `Memoization`. E.g. 
-
-    ```julia
-    # bad, will error calling foo(x)
-    using Memoization, ThreadSafeDicts
-    @memoize ThreadSafeDict foo(x) = ...
-
-    # good
-    using ThreadSafeDicts, Memoization
-    @memoize ThreadSafeDict foo(x) = ...
-    ```
-
 ## Notes
 
 This package can be used as a drop-in replacement for [Memoize.jl](https://github.com/JuliaCollections/Memoize.jl), and, as of this writing, has fewer limitations.

@@ -90,31 +90,30 @@ macro memoize(ex1, ex2=nothing)
     
     # the body of the function definition is replaced with this:
     sdef[:body] = quote
-        # ($getter)() = $(sdef[:body])
-        # $T = $(Core.Compiler.return_type)($getter, $Tuple{})
-        # $_get!($getter, $get_cache($cache_constructor, $cacheid_get), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
-        $cacheid_get
+        ($getter)() = $(sdef[:body])
+        $T = $(Core.Compiler.return_type)($getter, $Tuple{})
+        $_get!($getter, $get_cache($cache_constructor, $cacheid_get), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
     end
     
 
     canary = gensym("canary")
     quote
         func = Core.@__doc__ $(esc(combinedef(sdef)))
-        # begin
-        #     # for statically memoizable functions, create the cache here if it doesnt exist
-        #     $statically_memoizable(typeof(func)) && _get!($(esc(cache_constructor)), caches, func)
-        #     # verify we haven't switched the cache type
-        #     local cache_constructor_expr′ = _get!(()->$cache_constructor_expr, cache_constructor_exprs, func)
-        #     if cache_constructor_expr′ != $cache_constructor_expr
-        #         error("$func is already memoized with $cache_constructor_expr′")
-        #     end
-        # end
-        # # empty cache, but only if this is a top-level function definition
-        # # see also: https://discourse.julialang.org/t/is-there-a-way-to-determine-whether-code-is-toplevel
-        # $(esc(canary)) = true
-        # if isdefined($__module__, $(QuoteNode(canary)))
-        #     $empty_cache!($(esc(cacheid_empty)))
-        # end
+        begin
+            # for statically memoizable functions, create the cache here if it doesnt exist
+            $statically_memoizable(typeof(func)) && _get!($(esc(cache_constructor)), caches, func)
+            # verify we haven't switched the cache type
+            local cache_constructor_expr′ = _get!(()->$cache_constructor_expr, cache_constructor_exprs, func)
+            if cache_constructor_expr′ != $cache_constructor_expr
+                error("$func is already memoized with $cache_constructor_expr′")
+            end
+        end
+        # empty cache, but only if this is a top-level function definition
+        # see also: https://discourse.julialang.org/t/is-there-a-way-to-determine-whether-code-is-toplevel
+        $(esc(canary)) = true
+        if isdefined($__module__, $(QuoteNode(canary)))
+            $empty_cache!($(esc(cacheid_empty)))
+        end
         func
     end
 end

@@ -94,14 +94,8 @@ n=0; @test (uarg(Int)==Int && n==0)
 n=0; @test (uarg(Float64)==Float64 && n==1)
 n=0; @test (uarg(Float64)==Float64 && n==0)
 
-# renaming cache type
-@eval @memoize IdDict fixed_cache_toplevel(x) = x
-@test_throws Exception @eval @memoize Dict fixed_cache_toplevel(x) = x
-@test_throws Exception begin
-    function fixed_cache_closure(x)
-        @memoize IdDict closure(y) = (x,y)
-        @memoize Dict closure(y) = (x,y)
-    end
-end
+# redefining cache type
+@eval @memoize IdDict redef_cache_toplevel(x) = x
+@test_throws Exception @eval @memoize Dict redef_cache_toplevel(x) = x
 
 end
