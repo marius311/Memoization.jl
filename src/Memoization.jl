@@ -6,22 +6,43 @@ export @memoize
 # Stores a mapping (func => cache) for each memoized function `func`.
 const caches = IdDict()
 
-# Stores a mapping (cache_constructor_exprs => cache) for each
-# memoized function `func`, so that we can verify the same expression 
+# Stores a mapping (func => cache_constructor_expr) for each
+# memoized function `func`, so that we can verify the same expression
+# is always used.
 const cache_constructor_exprs = IdDict()
 
-# Non-function "callables" or any function that has closed-over variables
-# attached to it (indicated by having type parameters) are memoized
-# per-instance. 
+
+# Only top-level functions are memoized "statically", meaning that
+# get_cache(_,foo) for a top-level function, foo, does *not* result in
+# looking up Memoization.caches[foo] at run-time; the lookup is moved
+# to compile-time with the generated function trickery below. For
+# memoized closures (which can be recognized as functions with type
+# parameters) or callables (both where we have to look up a specific
+# *instance*), the lookup has to be "dynamic" i.e. done at run-time.
 statically_memoizable(::Type{F}) where {F<:Function} = isempty(F.parameters)
 statically_memoizable(::Type) = false
 
 
-# Look up the cache for a given memoized function. Using a generated
-# function allows us to move this lookup to compile time for
-# statically memoizable functions and improve performance.
+# Look up the cache for a given memoized function. The
+# generated-function trickery here allows us to move this lookup to
+# compile-time for statically memoizable functions and improve
+# performance.
 @generated function get_cache(default::Base.Callable, func::F) where {F}
-    statically_memoizable(F) ? caches[F.instance] : :(_get!(default, $caches, func))
+    if statically_memoizable(F)
+        # If the function is statically memoizable, the first
+        # lookup is dynamic, but we also define a specialized
+        # get_cache method which makes every subsequent lookup
+        # static.
+        quote
+            @eval @generated get_cache(::Base.Callable, ::$F) = caches[$(F.instance)]
+            _get!(default, $caches, func)
+        end
+    else
+        # For callables and closures, every lookup has to be dynamic. 
+        quote
+            _get!(default, $caches, func)
+        end
+    end
 end
 
 """
@@ -63,11 +84,11 @@ macro memoize(ex1, ex2=nothing)
     cache_constructor, funcdef = ex2 == nothing ? (IdDict, ex1) : (ex1, ex2)
     sdef = splitdef(funcdef)
     cache_constructor_expr = QuoteNode(Base.remove_linenums!(cache_constructor))
-    # if cache_constructor is a call, wrap it in a () -> ...
+    # if cache_constructor is a call, wrap it in a () -> ...to make it a callable
     if isexpr(cache_constructor, :call)
         cache_constructor = :(() -> $cache_constructor)
     end
-    # give unnamed args a placeholder name:
+    # give unnamed args placeholder names
     sdef[:args] = map(sdef[:args]) do arg
         sarg = splitarg(arg)
         combinearg((sarg[1] == nothing ? gensym() : sarg[1]), sarg[2:end]...)
@@ -100,9 +121,7 @@ macro memoize(ex1, ex2=nothing)
     quote
         func = Core.@__doc__ $(esc(combinedef(sdef)))
         begin
-            # for statically memoizable functions, create the cache here if it doesnt exist
-            $statically_memoizable(typeof(func)) && _get!($(esc(cache_constructor)), caches, func)
-            # verify we haven't switched the cache type
+            # verify we haven't already memoized this function with a different cache type
             local cache_constructor_expr′ = _get!(()->$cache_constructor_expr, cache_constructor_exprs, func)
             if cache_constructor_expr′ != $cache_constructor_expr
                 error("$func is already memoized with $cache_constructor_expr′")
