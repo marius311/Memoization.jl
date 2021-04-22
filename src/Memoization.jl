@@ -15,12 +15,21 @@ const cache_constructor_exprs = IdDict()
 # Only top-level functions are memoized "statically", meaning that
 # get_cache(_,foo) for a top-level function, foo, does *not* result in
 # looking up Memoization.caches[foo] at run-time; the lookup is moved
-# to compile-time with the generated function trickery below. For
-# memoized closures (which can be recognized as functions with type
-# parameters) or callables (both where we have to look up a specific
-# *instance*), the lookup has to be "dynamic" i.e. done at run-time.
-statically_memoizable(::Type{F}) where {F<:Function} = isempty(F.parameters)
-statically_memoizable(::Type) = false
+# to compile-time via the generated function trickery below. For
+# memoized inner functions, closures, or callables, the lookup is
+# "dynamic" i.e. done at run-time. Technically non-closure inner
+# functions could also be static except for
+# https://github.com/JuliaLang/julia/issues/40576. The following is
+# kind of a kludgy way to tell if we can do the static memoization
+# given the above issue.
+function statically_memoizable(::Type{F}) where {F}
+    try
+        F.instance
+        true
+    catch
+        false
+    end
+end
 
 
 # Look up the cache for a given memoized function. The

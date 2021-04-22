@@ -69,6 +69,13 @@ n=0; @test (k′(2)==(2,2) && n==1)
 n=0; @test (k′(2)==(2,2) && n==0)
 n=0; @test (k(2)==(1,2) && n==0)
 
+# https://github.com/JuliaLang/julia/issues/40576
+let
+    @memoize foo(x) = (n+=1; x)
+    global n=0; @test foo(1)==1 && n==1
+    global n=1; @test foo(1)==1 && n==1
+end
+
 # callables
 @eval struct Baz{T} end
 @eval @memoize (::Baz{T})(x::X) where {X, T<:Int} = (global n+=1; Int)
