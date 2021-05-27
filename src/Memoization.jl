@@ -37,11 +37,12 @@ end
 # compile-time for statically memoizable functions and improve
 # performance.
 @generated function get_cache(default::Base.Callable, func::F) where {F}
-    if statically_memoizable(F)
-        # If the function is statically memoizable, the first
-        # lookup is dynamic, but we also define a specialized
-        # get_cache method which makes every subsequent lookup
-        # static.
+    if statically_memoizable(F) && ccall(:jl_generating_output,Cint,())!=1
+        # If the function is statically memoizable and were not
+        # current precompiling (in which case the @eval below is
+        # disallowed), then in addition to dynamically looking up the
+        # right cache, we also define a specialized `get_cache` which
+        # makes every subsequent lookup static.
         quote
             @eval @generated get_cache(::Base.Callable, ::$F) = caches[$(F.instance)]
             _get!(default, $caches, func)
