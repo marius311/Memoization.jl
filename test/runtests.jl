@@ -105,4 +105,9 @@ n=0; @test (uarg(Float64)==Float64 && n==0)
 @eval @memoize IdDict redef_cache_toplevel(x) = x
 @test_throws Exception @eval @memoize Dict redef_cache_toplevel(x) = x
 
+# works inside generated functions
+@memoize gen1(x) = x
+@generated gen2() = gen1(1)
+@test gen2() == 1
+
 end
