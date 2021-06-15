@@ -3,56 +3,73 @@ module Memoization
 using MacroTools: splitdef, combinedef, splitarg, combinearg, isexpr
 export @memoize
 
-# Stores a mapping (func => cache) for each memoized function `func`.
+# Stores a mapping (memoizable-object => cache) for each memoized object.
 const caches = IdDict()
 
-# Stores a mapping (func => cache_constructor_expr) for each
-# memoized function `func`, so that we can verify the same expression
+# Stores a mapping (memoizable-object => cache_constructor_expr) for each
+# memoized object, so that we can verify the same expression
 # is always used.
 const cache_constructor_exprs = IdDict()
 
 
-# Only top-level functions are memoized "statically", meaning that
-# get_cache(_,foo) for a top-level function, foo, does *not* result in
-# looking up Memoization.caches[foo] at run-time; the lookup is moved
-# to compile-time via the generated function trickery below. For
-# memoized inner functions, closures, or callables, the lookup is
-# "dynamic" i.e. done at run-time. Technically non-closure inner
-# functions could also be static except for
-# https://github.com/JuliaLang/julia/issues/40576. The following is
-# kind of a kludgy way to tell if we can do the static memoization
-# given the above issue.
-function statically_memoizable(::Type{F}) where {F}
-    try
-        F.instance
-        true
-    catch
-        false
-    end
-end
+is_top_level_func(::Type{M}) where {M} = isdefined(M, :instance)
 
 
-# Look up the cache for a given memoized function. 
-# For statically memoizable functions, if we're not currently
-# precompiling and not in a pure context (in which case the @eval
-# below is disallowed) then in addition to dynamically looking up the
-# right cache, we also define a specialized `get_cache` which makes
-# every subsequent lookup static. For callables and closures, every
-# lookup has to be dynamic. 
-@generated function get_cache(default::Base.Callable, func::F) where {F}
-    if statically_memoizable(F) && ccall(:jl_generating_output,Cint,()) == 0
-        quote
-            if ccall(:jl_is_in_pure_context, Cint, ()) == 0
-                @eval @generated get_cache(::Base.Callable, ::$F) = caches[$(F.instance)]
+# Look up a given memoizable object in Memoization.caches.
+#
+# There's three ways this can happen below:
+#
+# 1) Its a top-level function and we are allowed to call the
+#    DefaultCache() function from the world-age of get_cache, so just
+#    do so and return the cache outright (totally static cache lookup,
+#    easiest option)
+#
+# 2) Its a top-level function but DefaultCache() was defined *after*
+#    get_cache, so we're not allowed to call it. In this case, do a
+#    dynamic lookup, but also set the function body up so that it
+#    defines a specialized get_cache which will make the next call
+#    after we hit top-level static. Couple of caveats are a) we can't
+#    do this during precompilation of a module (jl_generating_output),
+#    b) we can't do this is the memoized call is itself inside a pure
+#    context like another generated function (jl_is_in_pure_context),
+#    and c) for performance, we have to be careful to make the @eval
+#    only get called once even if we don't hit top-level before the
+#    second call.
+#
+# 3) Its a closure or callable, so just do the necessary dynamic
+#    lookup. 
+#
+@generated function get_cache(::Val{DefaultCache}, memoizable_obj::M) where {DefaultCache, M}
+    if is_top_level_func(M)
+        try
+            # (1)
+            return caches[M.instance] = DefaultCache()
+        catch err
+            if !(err isa MethodError) || (err.f != DefaultCache)
+                rethrow() # kludgy way to only catch a world-age error in DefaultCache()
             end
-            _get!(default, $caches, func)
         end
-    else
-        quote
-            _get!(default, $caches, func)
+        if ccall(:jl_generating_output,Cint,()) == 0
+            # (2)
+            return quote
+                cache = get($caches, memoizable_obj, nothing) # cant use get! here since it needs a closure
+                if cache === nothing
+                    cache = $caches[memoizable_obj] = DefaultCache()
+                    if ccall(:jl_is_in_pure_context, Cint, ()) == 0
+                        @eval @generated get_cache(::Val{DefaultCache}, ::$M) where {DefaultCache} = caches[$(M.instance)]
+                    end
+                end
+                cache
+            end
         end
     end
+    # (3)
+    return quote
+        _get!(DefaultCache, $caches, memoizable_obj)
+    end
 end
+
+
 
 """
     empty_cache!(arg)
@@ -65,7 +82,7 @@ matching that type will be cleared.
 """
 empty_cache!(func) = map(empty!, values(find_caches(func)))
 find_caches(func::F) where {F<:Function} = 
-    filter(((func′,_),)->(statically_memoizable(F) ? (func′ == func) : (func′ == F)), caches)
+    filter(((func′,_),)->(is_top_level_func(F) ? (func′ == func) : (func′ == F)), caches)
 find_caches(F::Union{DataType,Union,UnionAll}) = 
     filter(((func′,_),)->(func′ isa F), caches)
 empty_all_caches!() = map(empty!, values(caches))
@@ -122,7 +139,7 @@ macro memoize(ex1, ex2=nothing)
     sdef[:body] = quote
         ($getter)() = $(sdef[:body])
         $T = $(Core.Compiler.return_type)($getter, $Tuple{})
-        $_get!($getter, $get_cache($cache_constructor, $cacheid_get), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
+        $_get!($getter, $get_cache(Val($cache_constructor), $cacheid_get), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
     end
     
 
