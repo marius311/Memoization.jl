@@ -112,7 +112,7 @@ macro memoize(ex1, ex2=nothing)
             # @generated function which directly returns the cache,
             # this will cause the cache lookup to be done at compile
             # time
-            @eval @generated function Memoization.get_cache(_, f::typeof($(Expr(:$,:func))))
+            @eval @generated function $Memoization.get_cache(_, f::typeof($(Expr(:$,:func))))
                 $_get!($cache_constructor, $caches, f.instance)
             end
             # since here we know this is a top-level function

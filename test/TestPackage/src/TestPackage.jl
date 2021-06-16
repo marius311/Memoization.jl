@@ -1,5 +1,5 @@
 module TestPackage
-using Memoization
+using Memoization: @memoize
 @memoize foo(x) = x
 foo(1)
 end
