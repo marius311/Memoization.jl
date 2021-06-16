@@ -12,47 +12,20 @@ const caches = IdDict()
 const cache_constructor_exprs = IdDict()
 
 
-# Only top-level functions are memoized "statically", meaning that
-# get_cache(_,foo) for a top-level function, foo, does *not* result in
-# looking up Memoization.caches[foo] at run-time; the lookup is moved
-# to compile-time via the generated function trickery below. For
-# memoized inner functions, closures, or callables, the lookup is
-# "dynamic" i.e. done at run-time. Technically non-closure inner
-# functions could also be static except for
-# https://github.com/JuliaLang/julia/issues/40576. The following is
-# kind of a kludgy way to tell if we can do the static memoization
-# given the above issue.
-function statically_memoizable(::Type{F}) where {F}
-    try
-        F.instance
-        true
-    catch
-        false
-    end
-end
+# "Statically" memoizable functions are those where we can move the
+# `get_cache` lookup below to compile time, as opposed to having to
+# "dynamically" search the `caches` for the right cache at run-time.
+# Right now, this includes just top-level functions, but in theory
+# could maybe include non-closure inner functions in the future too.
+statically_memoizable(::Type{F}) where {F} = isdefined(F, :instance)
 
+# Lookup `func` in `caches`, and create its cache if its not there.
+# Note: for statically memoizable functions, the macro below will also
+# creates a @generated method for this function specific to each
+# statically memoizable function, such that the lookup becomes static.
+# The following definition is the dynamic fallback:
+get_cache(default, func) = _get!(default, caches, func)
 
-# Look up the cache for a given memoized function. 
-# For statically memoizable functions, if we're not currently
-# precompiling and not in a pure context (in which case the @eval
-# below is disallowed) then in addition to dynamically looking up the
-# right cache, we also define a specialized `get_cache` which makes
-# every subsequent lookup static. For callables and closures, every
-# lookup has to be dynamic. 
-@generated function get_cache(default::Base.Callable, func::F) where {F}
-    if statically_memoizable(F) && ccall(:jl_generating_output,Cint,()) == 0
-        quote
-            if ccall(:jl_is_in_pure_context, Cint, ()) == 0
-                @eval @generated get_cache(::Base.Callable, ::$F) = caches[$(F.instance)]
-            end
-            _get!(default, $caches, func)
-        end
-    else
-        quote
-            _get!(default, $caches, func)
-        end
-    end
-end
 
 """
     empty_cache!(arg)
@@ -124,9 +97,7 @@ macro memoize(ex1, ex2=nothing)
         $T = $(Core.Compiler.return_type)($getter, $Tuple{})
         $_get!($getter, $get_cache($cache_constructor, $cacheid_get), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
     end
-    
 
-    canary = gensym("canary")
     quote
         func = Core.@__doc__ $(esc(combinedef(sdef)))
         begin
@@ -136,10 +107,18 @@ macro memoize(ex1, ex2=nothing)
                 error("$func is already memoized with $cache_constructor_expr′")
             end
         end
-        # empty cache, but only if this is a top-level function definition
-        # see also: https://discourse.julialang.org/t/is-there-a-way-to-determine-whether-code-is-toplevel
-        $(esc(canary)) = true
-        if isdefined($__module__, $(QuoteNode(canary)))
+        if statically_memoizable(typeof(func))
+            # define a get_cache specific to `func`. by using a
+            # @generated function which directly returns the cache,
+            # this will cause the cache lookup to be done at compile
+            # time
+            @eval @generated function $Memoization.get_cache(_, f::typeof($(Expr(:$,:func))))
+                $_get!($cache_constructor, $caches, f.instance)
+            end
+            # since here we know this is a top-level function
+            # definition, we also need to clear the cache (if it
+            # exists) as existing memoized results may have been
+            # invalidated by the new definition
             $empty_cache!($(esc(cacheid_empty)))
         end
         func
