@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.com/marius311/Memoization.jl.svg?branch=master)](https://travis-ci.com/marius311/Memoization.jl)
 
-Easily and efficiently memoize any function in Julia. 
+Easily and efficiently memoize any function, closure, or callable object in Julia.
 
 ## Usage
 
@@ -27,7 +27,7 @@ julia> f(2)
 
 * Your function remains inferrable.
 
-* Multiple memoized methods for the same function can be defined across different modules (no warnings are generated).
+* Multiple memoized methods for the same function can be defined across different modules.
 
 * You can choose the cache type, e.g.,
 
@@ -45,7 +45,7 @@ julia> f(2)
 
 * You can also clear all caches for all functions with `Memoization.empty_all_caches!()`.
 
-* You are free to memoize some methods of a function but not others, e.g.:
+* You can memoize some methods of a function but not others, e.g.:
 
     ```julia
     julia> @memoize f(x) = (println("Computed $x"); x)
