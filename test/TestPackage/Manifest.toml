@@ -17,7 +17,7 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 deps = ["MacroTools"]
 path = "../.."
 uuid = "6fafb56a-5788-4b4e-91ca-c0cea6611c73"
-version = "0.1.10"
+version = "0.1.12"
 
 [[Random]]
 deps = ["Serialization"]

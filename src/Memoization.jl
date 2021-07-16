@@ -110,11 +110,11 @@ macro memoize(ex1, ex2=nothing)
         if statically_memoizable(typeof(func))
             # if it doesnt exist yet, define a get_cache specific to
             # `func`. by using a @generated function which directly
-            # returns the cache, this will cause the cache lookup to
+            # returns the cache, this effectively causes the cache lookup to
             # be done at compile time
             if first(methods($Memoization.get_cache, Tuple{Any,typeof(func)})).sig.parameters[3] == Any
                 @eval @generated function $Memoization.get_cache(_, f::typeof($(Expr(:$,:func))))
-                    $_get!($cache_constructor, $caches, f.instance)
+                    $_get!($cache_constructor, $Memoization.caches, f.instance)
                 end
             end
             # since here we know this is a top-level function
