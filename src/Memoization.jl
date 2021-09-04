@@ -91,11 +91,20 @@ macro memoize(ex1, ex2=nothing)
         cacheid_get = cacheid_empty = sdef[:name]
     end
     
+    sdef[:body] = if isempty(kwarg_signature)
     # the body of the function definition is replaced with this:
-    sdef[:body] = quote
-        ($getter)() = $(sdef[:body])
-        $T = $(Core.Compiler.return_type)($getter, $Tuple{})
-        $_get!($getter, $get_cache($cache_constructor, $cacheid_get), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
+        quote
+            ($getter)() = $(sdef[:body])
+            $T = $(Core.Compiler.return_type)($getter, $Tuple{})
+            $_get!($getter, $get_cache($cache_constructor, $cacheid_get), $(arg_signature...)) :: $T
+        end
+    else
+        quote
+            ($getter)() = $(sdef[:body])
+            $T = $(Core.Compiler.return_type)($getter, $Tuple{})
+            $_get!($getter, $get_cache($cache_constructor, $cacheid_get), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
+        end
+
     end
 
     quote
