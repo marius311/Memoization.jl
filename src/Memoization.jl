@@ -63,13 +63,23 @@ the macro before the function definition. For example, if you want to memoize
 based on the contents of vectors, you could use a `Dict`.
 """
 macro memoize(ex1, ex2=nothing)
-    cache_constructor, funcdef = ex2 == nothing ? (IdDict, ex1) : (ex1, ex2)
-    sdef = splitdef(funcdef)
+    cache_constructor, func_call_or_def = ex2 == nothing ? (IdDict, ex1) : (ex1, ex2)
     cache_constructor_expr = QuoteNode(Base.remove_linenums!(cache_constructor))
     # if cache_constructor is a call, wrap it in a () -> ...to make it a callable
     if isexpr(cache_constructor, :call)
         cache_constructor = :(() -> $cache_constructor)
     end
+    # call the 
+    if isexpr(func_call_or_def, :call)
+        _memoize_funccall(cache_constructor, func_call_or_def)
+    else
+        _memoize_funcdef(cache_constructor, cache_constructor_expr, func_call_or_def)
+    end
+end
+
+
+function _memoize_funcdef(cache_constructor, cache_constructor_expr, funcdef)
+    sdef = splitdef(funcdef)
     # give unnamed args placeholder names
     sdef[:args] = map(sdef[:args]) do arg
         sarg = splitarg(arg)
@@ -129,6 +139,30 @@ macro memoize(ex1, ex2=nothing)
         end
         func
     end
+end
+
+
+function _memoize_funccall(cache_constructor, funccall)
+
+    isexpr(funccall,:call) || error()
+    funcname = funccall.args[1]
+    
+    arg_signature, kwarg_signature = [], []
+    for arg in funccall.args[2:end]
+        if isexpr(arg, :kw)
+            push!(kwarg_signature, Expr(:(=), arg.args...))
+        elseif isexpr(arg, :parameters)
+            push!(kwarg_signature, arg)
+        else
+            push!(arg_signature, arg)
+        end
+    end
+
+    esc(quote
+        cache = $get_cache($cache_constructor, $funcname)
+        $_get!(() -> $funccall, cache, (($(arg_signature...),), ($(kwarg_signature...),)))
+    end)
+
 end
 
 
