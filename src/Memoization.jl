@@ -73,7 +73,6 @@ macro memoize(ex1, ex2=nothing)
     if isexpr(cache_constructor, :call)
         cache_constructor = :(() -> $cache_constructor)
     end
-    # call the 
     if isexpr(func_call_or_def, :call)
         _memoize_funccall(cache_constructor, func_call_or_def)
     else
@@ -93,9 +92,8 @@ function _memoize_funcdef(cache_constructor, cache_constructor_expr, funcdef)
     if !haskey(sdef, :name)
         sdef[:name] = gensym()
     end
-    arg_signature   = [(issplat ? :($arg...) : arg)          for (arg,_,issplat) in map(splitarg,sdef[:args])]
-    kwarg_signature = [(issplat ? :($arg...) : :($arg=$arg)) for (arg,_,issplat) in map(splitarg,sdef[:kwargs])]
-    T, getter = gensym.(("T","getter"))
+    args   = [(issplat ? :($arg...) : arg)          for (arg,_,issplat) in map(splitarg,sdef[:args])]
+    kwargs = [(issplat ? :($arg...) : :($arg=$arg)) for (arg,_,issplat) in map(splitarg,sdef[:kwargs])]
     
     # if memoizing just `f(x) = ...` we want to call both `get_cache` and
     # `empty_cache` on `f`, but if memoizing a callable like
@@ -110,11 +108,7 @@ function _memoize_funcdef(cache_constructor, cache_constructor_expr, funcdef)
     end
     
     # the body of the function definition is replaced with this:
-    sdef[:body] = quote
-        ($getter)() = $(sdef[:body])
-        $T = $(Core.Compiler.return_type)($getter, $Tuple{})
-        $_get!($getter, $get_cache($cache_constructor, $cacheid_get), (($(arg_signature...),),(;$(kwarg_signature...),))) :: $T
-    end
+    sdef[:body] = _memoized_call(cache_constructor, cacheid_get, sdef[:body], args, kwargs)
 
     quote
         func = Core.@__doc__ $(esc(combinedef(sdef)))
@@ -147,29 +141,29 @@ end
 
 
 function _memoize_funccall(cache_constructor, funccall)
-
-    isexpr(funccall,:call) || error()
     funcname = funccall.args[1]
-    
-    arg_signature, kwarg_signature = [], []
+    args, kwargs = [], []
     for arg in funccall.args[2:end]
         if isexpr(arg, :kw)
-            push!(kwarg_signature, Expr(:(=), arg.args...))
+            push!(kwargs, Expr(:(=), arg.args...))
         elseif isexpr(arg, :parameters)
-            push!(kwarg_signature, arg)
+            push!(kwargs, arg)
         else
-            push!(arg_signature, arg)
+            push!(args, arg)
         end
     end
+    esc(_memoized_call(cache_constructor, funcname, funccall, args, kwargs))
+end
+
+
+function _memoized_call(cache_constructor, cacheid_get, getter_body, args, kwargs)
     T, getter = gensym.(("T","getter"))
-
-    esc(quote
-        cache = $get_cache($cache_constructor, $funcname)
-        ($getter)() = $funccall
+    quote
+        cache = $get_cache($cache_constructor, $cacheid_get)
+        ($getter)() = $getter_body
         $T = $(Core.Compiler.return_type)($getter, $Tuple{})
-        $_get!($getter, cache, (($(arg_signature...),), ($(kwarg_signature...),))) :: $T
-    end)
-
+        $_get!($getter, cache, (($(args...),), ($(kwargs...),))) :: $T
+    end
 end
 
 
