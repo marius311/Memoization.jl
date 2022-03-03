@@ -2,15 +2,15 @@
 
 [![Build Status](https://travis-ci.com/marius311/Memoization.jl.svg?branch=master)](https://travis-ci.com/marius311/Memoization.jl)
 
-Easily and efficiently memoize any function, closure, or callable object in Julia.
+Easily and efficiently memoize any function call, function, closure, or callable object in Julia.
 
-## Usage
+## Example Usage
 
 ```julia
 
 julia> using Memoization
 
-julia> @memoize f(x) = (println("Computed $x"); x)
+julia> @memoize f(x) = (println("Computed $x"); x) # memoize a function
 
 julia> f(2)
 Computed 2
@@ -18,16 +18,27 @@ Computed 2
 
 julia> f(2)
 2
+
+julia> g(x) = (println("Computed $x"); x)
+
+julia> @memoize g(2) # memoize a single function call
+Computed 2
+2
+
+julia> @memoize g(2)
+2
 ```
 
 
 ## Highlights
 
-* All function definition forms with args and/or kwargs and/or type parameters work.
+* You can `@memoize` a function definition, in which case every call to that function will be memoized, or you can `@memoize` a single function-call to any Julia function, in which case only that call is memoized. 
 
-* Your function remains inferrable.
+    Note that memoized function-calls can be slightly less performant and may give incorrect results if the function is redefined, see limitations below. Functions memoized at their definition are optimally performant and will always give the right result even if some methods are redefined.
 
-* Multiple memoized methods for the same function can be defined across different modules.
+* All function definition or function call forms with args and/or kwargs and/or type parameters work.
+
+* The function or function call remains inferrable.
 
 * You can choose the cache type, e.g.,
 
@@ -41,9 +52,13 @@ julia> f(2)
     The default cache type is `IdDict` which 
     counts arguments the same if they `===` each other. Another common choice is `Dict` which memoizes based on if they `==` each other (this is probably useful if you want to count e.g. vectors which contain the same entries as the same, but will lead to somewhat slower cache lookup).
     
-* You can clear the cache for a given function at any time with `Memoization.empty_cache!(f)`. Defining new memoized methods for a function will also clear the cache.
+* You can clear the cache for a given function at any time with `Memoization.empty_cache!(f)`.
 
 * You can also clear all caches for all functions with `Memoization.empty_all_caches!()`.
+
+Additionally, for memoized function definitions:
+
+* Multiple memoized methods for the same function can be defined across different modules.
 
 * You can memoize some methods of a function but not others, e.g.:
 
@@ -130,6 +145,17 @@ julia> f(2)
     ```
 
 ## Limitations
+
+* Memoized function-calls can become out-of-date if the function is redefined, e.g.:
+
+    ```julia
+    f(x) = x
+    @memoize f(2)
+    f(x) = x^2
+    @memoize f(2) # incorrectly returns 2, not 4
+    ```
+
+    To fix this, manually call `Memoization.empty_cache!(f)` after redefining the function. Function memoized at their definition do not suffer from this problem.
 
 * This package is not thread-safe with either `Dict` or `IdDict`. However, if a thread-safe cache is used (e.g. [ThreadSafeDicts.jl](https://github.com/wherrera10/ThreadSafeDicts.jl)), then memoizing top-level functions is thread-safe. Memoizing closures and callables is not yet thread-safe with any cache type. 
 
