@@ -157,6 +157,8 @@ Additionally, for memoized function definitions:
 
     To fix this, manually call `Memoization.empty_cache!(f)` after redefining the function. Function memoized at their definition do not suffer from this problem.
 
+* You cannot switch the cache type within the same session. E.g. you cannot do `@memoize Dict foo() = ...` and then later `@memoize IdDict foo() = ...`. You must restart your Julia session for this.  
+
 * This package is not thread-safe with either `Dict` or `IdDict`. However, if a thread-safe cache is used (e.g. [ThreadSafeDicts.jl](https://github.com/wherrera10/ThreadSafeDicts.jl)), then memoizing top-level functions is thread-safe. Memoizing closures and callables is not yet thread-safe with any cache type. 
 
 ## Notes
