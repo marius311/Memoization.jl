@@ -56,6 +56,8 @@ julia> @memoize g(2)
 
 * You can also clear all caches for all functions with `Memoization.empty_all_caches!()`.
 
+* You can call memoized functions during precompilation. The memoized results are then stored in the precompiled module and will not be recomputed at runtime. Note, however, if memoized results are not serializable (e.g. Channels or FFT plans or you just don't want them saved), you should manually call `empty_cache!` at the end of precompilation, e.g. in the top-level of your module or at the end of your `SnoopPrecompile.@precompile_all_calls` block.
+
 Additionally, for memoized function definitions:
 
 * Multiple memoized methods for the same function can be defined across different modules.
