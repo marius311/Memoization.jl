@@ -3,14 +3,19 @@ module Memoization
 using MacroTools: splitdef, combinedef, splitarg, combinearg, isexpr
 export @memoize
 
+function __init__()
+    if ccall(:jl_generating_output, Cint, ()) == 0
+        @eval _dummy_backedge() = nothing
+    end
+end
+
 # Stores a mapping (func => cache) for each memoized function `func`.
-const caches = IdDict()
+const dynamic_caches = IdDict()
 
 # Stores a mapping (func => cache_constructor_expr) for each
 # memoized function `func`, so that we can verify the same expression
 # is always used.
 const cache_constructor_exprs = IdDict()
-
 
 # "Statically" memoizable functions are those where we can move the
 # `get_cache` lookup below to compile time, as opposed to having to
@@ -24,7 +29,28 @@ statically_memoizable(::Type{F}) where {F} = isdefined(F, :instance)
 # creates a @generated method for this function specific to each
 # statically memoizable function, such that the lookup becomes static.
 # The following definition is the dynamic fallback:
-get_cache(default, func) = _get!(default, caches, func)
+_dynamic_get_cache(default, func) = _get!(default, dynamic_caches, func)
+_static_get_cache(::Any) = nothing
+
+function get_cache(default, func) 
+    cache = _static_get_cache(func)
+    cache !== nothing ? cache : _dynamic_get_cache(default, func)
+end
+
+_dummy_backedge() = nothing
+function get_caches()
+    _dummy_backedge()
+    caches = IdDict()
+    merge!(caches, dynamic_caches)
+    generic_static_get_cache = which(_static_get_cache, Tuple{Any})
+    for m in methods(_static_get_cache)
+        if m != generic_static_get_cache
+            func = m.sig.parameters[2]
+            caches[func.instance] = _static_get_cache(func.instance)
+        end
+    end
+    caches
+end
 
 
 """
@@ -38,10 +64,10 @@ matching that type will be cleared.
 """
 empty_cache!(func) = map(empty!, values(find_caches(func)))
 find_caches(func::F) where {F<:Function} = 
-    filter(((func′,_),)->(statically_memoizable(F) ? (func′ == func) : (func′ == F)), caches)
+    filter(((func′,_),)->(statically_memoizable(F) ? (func′ == func) : (func′ == F)), get_caches())
 find_caches(F::Union{DataType,Union,UnionAll}) = 
-    filter(((func′,_),)->(func′ isa F), caches)
-empty_all_caches!() = map(empty!, values(caches))
+    filter(((func′,_),)->(func′ isa F), get_caches())
+empty_all_caches!() = map(empty!, values(get_caches()))
 
 """
     @memoize f(x) = ...                # memoize a function definition
@@ -124,9 +150,12 @@ function _memoize_funcdef(cache_constructor, cache_constructor_expr, funcdef)
             # `func`. by using a @generated function which directly
             # returns the cache, this effectively causes the cache lookup to
             # be done at compile time
-            if first(methods($Memoization.get_cache, Tuple{Any,typeof(func)})).sig.parameters[3] == Any
-                @eval @generated function $Memoization.get_cache(_, f::typeof($(Expr(:$,:func))))
-                    $_get!($cache_constructor, $Memoization.caches, f.instance)
+            if (
+                which($Memoization._static_get_cache, Tuple{typeof(func)}) == 
+                which($Memoization._static_get_cache, Tuple{Any})
+            )
+                @eval @generated function $Memoization._static_get_cache(::typeof($(Expr(:$,:func))))
+                    ($cache_constructor)()
                 end
             end
             # since here we know this is a top-level function
