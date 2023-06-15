@@ -201,12 +201,12 @@ end
 
 
 function _memoized_call(cache_constructor, cacheid_get, getter_body, args, kwargs)
-    T, getter = gensym.(("T","getter"))
+    T, getter, cache = gensym.(("T","getter","cache"))
     quote
-        cache = $get_cache($cache_constructor, $cacheid_get)
+        $cache = $get_cache($cache_constructor, $cacheid_get)
         ($getter)() = $getter_body
         $T = $(Core.Compiler.return_type)($getter, $Tuple{})
-        $_get!($getter, cache, (($(args...),), ($(kwargs...),))) :: $T
+        $_get!($getter, $cache, (($(args...),), ($(kwargs...),))) :: $T
     end
 end
 
