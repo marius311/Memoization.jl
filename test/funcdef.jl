@@ -106,6 +106,9 @@ n=0; @test (uarg(Float64)==Float64 && n==0)
 @test gen2() == 1
 
 # works when called during precompilation of a package
-@test read(`$(Base.julia_cmd()[1]) --startup-file=no --project=$(joinpath(@__DIR__,"TestPackage")) -e "using TestPackage; print(TestPackage.foo(2))"`,String) == "2"
+Pkg.develop(path=joinpath(@__DIR__,"TestPackage"))
+using TestPackage
+@test TestPackage.foo(2) == 2
+# @test read(`$(Base.julia_cmd()[1]) --startup-file=no --project=$(joinpath(@__DIR__,"TestPackage")) -e "using TestPackage; print(TestPackage.foo(2))"`,String) == "2"
 
 end

@@ -1,5 +1,6 @@
 using Memoization
 using Test
+using Pkg
 
 @testset "Memoization" begin
 
