@@ -96,6 +96,16 @@ n=0; @test (uarg(Int)==Int && n==0)
 n=0; @test (uarg(Float64)==Float64 && n==1)
 n=0; @test (uarg(Float64)==Float64 && n==0)
 
+
+# all-underscore args
+@eval @memoize auarg(_::Type{T}) where {T} = (global n+=1; T)
+n=0; @test (auarg(Int)==Int && n==1)
+n=0; @test (auarg(Int)==Int && n==0)
+n=0; @test (auarg(Float64)==Float64 && n==1)
+n=0; @test (auarg(Float64)==Float64 && n==0)
+@test_throws ErrorException @eval @memoize badauarg(_::Type{T}) where {T} = _ # reading _ still errors
+
+
 # redefining cache type
 @eval @memoize IdDict redef_cache_toplevel(x) = x
 @test_throws Exception @eval @memoize Dict redef_cache_toplevel(x) = x

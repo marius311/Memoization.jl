@@ -124,10 +124,15 @@ end
 
 function _memoize_funcdef(cache_constructor, cache_constructor_expr, funcdef)
     sdef = splitdef(funcdef)
-    # give unnamed args placeholder names
+    # give unnamed args or all-underscore args a placeholder name
     sdef[:args] = map(sdef[:args]) do arg
         sarg = splitarg(arg)
-        combinearg((sarg[1] == nothing ? gensym() : sarg[1]), sarg[2:end]...)
+        if sarg[1] == nothing || all(split(string(sarg[1]),"") .== "_")
+            arg_name = gensym()
+        else
+            arg_name = sarg[1]
+        end
+        combinearg(arg_name, sarg[2:end]...)
     end
     # give anonymous function placeholder name
     if !haskey(sdef, :name)
