@@ -127,7 +127,7 @@ function _memoize_funcdef(cache_constructor, cache_constructor_expr, funcdef)
     # give unnamed args or all-underscore args a placeholder name
     sdef[:args] = map(sdef[:args]) do arg
         sarg = splitarg(arg)
-        if sarg[1] == nothing || all(split(string(sarg[1]),"") .== "_")
+        if sarg[1] == nothing || all(==('_'), string(sarg[1]))
             arg_name = gensym()
         else
             arg_name = sarg[1]
