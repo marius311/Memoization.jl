@@ -1,6 +1,6 @@
 # Memoization.jl
 
-[![Build Status](https://travis-ci.com/marius311/Memoization.jl.svg?branch=master)](https://travis-ci.com/marius311/Memoization.jl)
+[![](https://github.com/marius311/Memoization.jl/workflows/runtests/badge.svg)](https://github.com/marius311/Memoization.jl/actions?query=workflow%3Aruntests+branch%3Amaster) 
 
 Easily and efficiently memoize any function call, function, closure, or callable object in Julia.
 
