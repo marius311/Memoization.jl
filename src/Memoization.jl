@@ -40,15 +40,8 @@ const cache_constructor_exprs = IdDict()
 
 # get all memoization caches in the current session. this includes
 # caches in `dynamic_caches` and all the caches in the specialized
-# `_static_get_cache` for each statically memoized function. note, the
-# `_dummy_backedge` thing is to trigger recompilation of this function
-# on startup. for some reason, it otherwise sporadically seems to not
-# dispatch to the right `_static_get_cache` for memoized functions
-# that got called during precompilation. seems like a Julia bug, but
-# not sure.
-_dummy_backedge() = nothing
+# `_static_get_cache` for each statically memoized function.
 function get_caches()
-    _dummy_backedge()
     caches = IdDict()
     merge!(caches, dynamic_caches)
     generic_static_get_cache = which(_static_get_cache, Tuple{Any})
@@ -59,11 +52,6 @@ function get_caches()
         end
     end
     caches
-end
-function __init__()
-    if ccall(:jl_generating_output, Cint, ()) == 0
-        @eval _dummy_backedge() = nothing
-    end
 end
 
 
