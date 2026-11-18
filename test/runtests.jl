@@ -7,5 +7,6 @@ using Pkg
     include("funcdef.jl")
     Memoization.empty_all_caches!()
     include("funccall.jl")
+    include("revise.jl")
 
 end
